@@ -4,7 +4,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"  # Pin to major version — prevents breaking changes
+      version = "~> 5.0" # Pin to major version — prevents breaking changes
     }
   }
 }
@@ -46,6 +46,6 @@ module "vpc" {
 
   tags = {
     Team        = "platform"
-    AutoDestroy = "true"  # Reminder tag — this env should be destroyed after sessions
+    AutoDestroy = "true" # Reminder tag — this env should be destroyed after sessions
   }
 }

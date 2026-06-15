@@ -7,6 +7,6 @@ terraform {
     key            = "dev/vpc/terraform.tfstate"
     region         = "us-east-1"
     dynamodb_table = "shopwise-terraform-locks"
-    encrypt        = true  # State file is encrypted at rest in S3
+    encrypt        = true # State file is encrypted at rest in S3
   }
 }

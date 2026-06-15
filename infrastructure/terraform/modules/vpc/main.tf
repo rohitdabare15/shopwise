@@ -65,7 +65,7 @@ resource "aws_subnet" "public" {
     Name = "${var.project_name}-${var.environment}-public-${var.availability_zones[count.index]}"
     Type = "public"
     # ALB controller uses this tag to discover which subnets to use for internet-facing ALBs
-    "kubernetes.io/role/elb" = "1"
+    "kubernetes.io/role/elb"                                       = "1"
     "kubernetes.io/cluster/${var.project_name}-${var.environment}" = "shared"
   })
 }
@@ -86,7 +86,7 @@ resource "aws_subnet" "private_app" {
     Name = "${var.project_name}-${var.environment}-private-app-${var.availability_zones[count.index]}"
     Type = "private-app"
     # Internal load balancer tag — used when creating internal ALBs or NLBs
-    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/role/internal-elb"                              = "1"
     "kubernetes.io/cluster/${var.project_name}-${var.environment}" = "shared"
   })
 }
@@ -136,7 +136,7 @@ resource "aws_nat_gateway" "main" {
 
   allocation_id = aws_eip.nat[count.index].id
   # Place NAT GW in the first public subnet (or one per AZ if nat_gateway_count > 1)
-  subnet_id     = aws_subnet.public[count.index].id
+  subnet_id = aws_subnet.public[count.index].id
 
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-${var.environment}-nat-${count.index + 1}"
@@ -179,7 +179,7 @@ resource "aws_route_table" "private_app" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block     = "0.0.0.0/0"
+    cidr_block = "0.0.0.0/0"
     # If single NAT GW, all AZs use index 0. If one per AZ, use matching index.
     nat_gateway_id = aws_nat_gateway.main[var.single_nat_gateway ? 0 : count.index].id
   }
@@ -226,7 +226,7 @@ resource "aws_route_table_association" "private_db" {
 resource "aws_flow_log" "main" {
   iam_role_arn    = aws_iam_role.flow_log.arn
   log_destination = aws_cloudwatch_log_group.flow_log.arn
-  traffic_type    = "ALL"  # Capture ACCEPT and REJECT traffic
+  traffic_type    = "ALL" # Capture ACCEPT and REJECT traffic
   vpc_id          = aws_vpc.main.id
 
   tags = merge(local.common_tags, {
@@ -236,7 +236,7 @@ resource "aws_flow_log" "main" {
 
 resource "aws_cloudwatch_log_group" "flow_log" {
   name              = "/aws/vpc/${var.project_name}-${var.environment}/flow-logs"
-  retention_in_days = 30  # Keep 30 days — enough for security investigations
+  retention_in_days = 30 # Keep 30 days — enough for security investigations
 
   tags = local.common_tags
 }
