@@ -49,3 +49,25 @@ module "vpc" {
     AutoDestroy = "true" # Reminder tag — this env should be destroyed after sessions
   }
 }
+module "iam" {
+  source = "../../modules/iam"
+
+  project_name     = var.project_name
+  environment      = var.environment
+  aws_account_id   = data.aws_caller_identity.current.account_id
+  aws_region       = var.aws_region
+  eks_cluster_name = "${var.project_name}-${var.environment}"
+
+  # OIDC values are empty until Phase 6 creates the EKS cluster
+  # We'll run terraform apply again after Phase 6 to populate these
+  eks_oidc_provider_arn = ""
+  eks_oidc_provider_url = ""
+
+  tags = {
+    Team = "platform"
+  }
+}
+
+# Data source — reads your current AWS account ID automatically
+# Means you never hardcode 617162869021 in Terraform code
+data "aws_caller_identity" "current" {}

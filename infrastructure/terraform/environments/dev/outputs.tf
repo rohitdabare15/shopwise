@@ -19,3 +19,18 @@ output "nat_gateway_public_ips" {
   description = "Whitelist these IPs in any external service that needs to trust your VPC outbound traffic"
   value       = module.vpc.nat_gateway_public_ips
 }
+output "eks_cluster_role_arn" {
+  value = module.iam.eks_cluster_role_arn
+}
+
+output "eks_node_role_arn" {
+  value = module.iam.eks_node_role_arn
+}
+
+output "jenkins_instance_profile_name" {
+  value = module.iam.jenkins_instance_profile_name
+}
+
+output "rds_monitoring_role_arn" {
+  value = module.iam.rds_monitoring_role_arn
+}
