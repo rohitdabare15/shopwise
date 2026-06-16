@@ -60,14 +60,46 @@ module "iam" {
 
   # OIDC values are empty until Phase 6 creates the EKS cluster
   # We'll run terraform apply again after Phase 6 to populate these
-  eks_oidc_provider_arn = ""
-  eks_oidc_provider_url = ""
+  eks_oidc_provider_arn = module.eks.oidc_provider_arn
+  eks_oidc_provider_url = module.eks.oidc_provider_url
 
   tags = {
     Team = "platform"
   }
 }
 
+module "eks" {
+  source = "../../modules/eks"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  # Pull subnet and VPC IDs directly from VPC module outputs
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_app_subnet_ids
+
+  # Pull role ARNs from IAM module outputs
+  cluster_role_arn = module.iam.eks_cluster_role_arn
+  node_role_arn    = module.iam.eks_node_role_arn
+
+  # Dev sizing — small and cheap
+  cluster_version     = "1.31"
+  node_instance_types = ["t3.medium"]
+  node_desired_size   = 2
+  node_min_size       = 1
+  node_max_size       = 3
+  node_disk_size      = 20
+
+  tags = {
+    Team        = "platform"
+    AutoDestroy = "true"
+  }
+}
+
+# ── Feed OIDC values back into IAM module ──────────────────────
+# Now that EKS exists, update the IAM module with the OIDC
+# provider details so the backend IRSA role gets created.
+# Terraform handles the dependency ordering automatically.
 # Data source — reads your current AWS account ID automatically
 # Means you never hardcode 617162869021 in Terraform code
 data "aws_caller_identity" "current" {}

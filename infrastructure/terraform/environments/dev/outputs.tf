@@ -34,3 +34,15 @@ output "jenkins_instance_profile_name" {
 output "rds_monitoring_role_arn" {
   value = module.iam.rds_monitoring_role_arn
 }
+
+output "cluster_name" {
+  value = module.eks.cluster_name
+}
+
+output "cluster_endpoint" {
+  value = module.eks.cluster_endpoint
+}
+
+output "oidc_provider_arn" {
+  value = module.eks.oidc_provider_arn
+}
