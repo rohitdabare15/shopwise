@@ -96,6 +96,34 @@ module "eks" {
   }
 }
 
+module "rds" {
+  source = "../../modules/rds"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  vpc_id              = module.vpc.vpc_id
+  database_subnet_ids = module.vpc.private_db_subnet_ids
+
+  # Only EKS app nodes can reach RDS
+  app_subnet_cidr_blocks = ["10.0.10.0/24", "10.0.11.0/24", "10.0.12.0/24"]
+
+  db_name                = "shopwise"
+  db_password_secret_arn = var.db_password_secret_arn
+  monitoring_role_arn    = module.iam.rds_monitoring_role_arn
+
+  # Dev settings — small and cheap
+  instance_class        = "db.t3.micro"
+  allocated_storage     = 20
+  max_allocated_storage = 50
+  multi_az              = false
+  backup_retention_days = 1
+  deletion_protection   = false
+
+  tags = {
+    Team = "platform"
+  }
+}
 # ── Feed OIDC values back into IAM module ──────────────────────
 # Now that EKS exists, update the IAM module with the OIDC
 # provider details so the backend IRSA role gets created.

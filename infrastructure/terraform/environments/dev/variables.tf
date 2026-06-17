@@ -65,3 +65,8 @@ variable "node_max_size" {
   type    = number
   default = 3
 }
+
+variable "db_password_secret_arn" {
+  description = "Secrets Manager ARN for RDS master password"
+  type        = string
+}

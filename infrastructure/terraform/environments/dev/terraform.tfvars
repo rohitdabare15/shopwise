@@ -10,3 +10,4 @@ availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
 public_subnet_cidrs      = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
 private_app_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24", "10.0.12.0/24"]
 private_db_subnet_cidrs  = ["10.0.20.0/24", "10.0.21.0/24", "10.0.22.0/24"]
+db_password_secret_arn   = "arn:aws:secretsmanager:us-east-1:617162869021:secret:shopwise/dev/rds/master-password-RpXQrW"

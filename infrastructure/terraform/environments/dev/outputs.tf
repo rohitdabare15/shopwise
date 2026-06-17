@@ -46,3 +46,11 @@ output "cluster_endpoint" {
 output "oidc_provider_arn" {
   value = module.eks.oidc_provider_arn
 }
+output "db_endpoint" {
+  value = module.rds.db_endpoint
+}
+
+output "db_host" {
+  value     = module.rds.db_host
+  sensitive = true
+}
