@@ -124,6 +124,19 @@ module "rds" {
     Team = "platform"
   }
 }
+
+module "ecr" {
+  source = "../../modules/ecr"
+
+  project_name          = var.project_name
+  environment           = var.environment
+  repositories          = ["frontend", "backend"]
+  image_retention_count = 10
+
+  tags = {
+    Team = "platform"
+  }
+}
 # ── Feed OIDC values back into IAM module ──────────────────────
 # Now that EKS exists, update the IAM module with the OIDC
 # provider details so the backend IRSA role gets created.

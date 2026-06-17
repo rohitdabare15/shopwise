@@ -54,3 +54,11 @@ output "db_host" {
   value     = module.rds.db_host
   sensitive = true
 }
+
+output "ecr_frontend_url" {
+  value = module.ecr.frontend_url
+}
+
+output "ecr_backend_url" {
+  value = module.ecr.backend_url
+}

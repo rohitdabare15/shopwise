@@ -92,8 +92,8 @@ resource "aws_db_parameter_group" "main" {
 
   parameter {
     # Log queries slower than 1 second — essential for performance debugging
-    name  = "log_min_duration_statement"
-    value = "1000"
+    name         = "log_min_duration_statement"
+    value        = "1000"
     apply_method = "immediate"
   }
 
@@ -101,7 +101,7 @@ resource "aws_db_parameter_group" "main" {
 
   lifecycle {
     # Prevents destruction if parameter group is in use
-     create_before_destroy = true
+    create_before_destroy = true
   }
 }
 
