@@ -1,4 +1,6 @@
 locals {
+  cluster_name = var.eks_cluster_name
+
   common_tags = merge(var.tags, {
     Project     = var.project_name
     Environment = var.environment
@@ -6,9 +8,17 @@ locals {
     Module      = "iam"
   })
 
-  cluster_name = var.eks_cluster_name
-}
+  # When OIDC ARN is empty (before EKS exists), use account root
+  # as a placeholder principal that AWS accepts but nothing can assume
+  oidc_principal = var.eks_oidc_provider_arn != "" ? var.eks_oidc_provider_arn : "arn:aws:iam::${var.aws_account_id}:root"
 
+  oidc_condition = var.eks_oidc_provider_arn != "" ? {
+    StringEquals = {
+      "${var.eks_oidc_provider_url}:sub" = "system:serviceaccount:shopwise:backend-sa"
+      "${var.eks_oidc_provider_url}:aud" = "sts.amazonaws.com"
+    }
+  } : {}
+}
 # ═══════════════════════════════════════════════════════════════
 # EKS CONTROL PLANE ROLE
 # ═══════════════════════════════════════════════════════════════
@@ -113,7 +123,7 @@ resource "aws_iam_role_policy_attachment" "eks_cloudwatch" {
 # 4. The pod exchanges that token for AWS credentials via STS
 # 5. AWS only issues credentials if the OIDC token matches the
 #    trust policy — pod identity is cryptographically verified
-#
+
 # Result: Pod A (frontend) has zero AWS access.
 #         Pod B (backend) can only read from Secrets Manager.
 #         Neither can access S3, even though they're on the same node.
@@ -121,23 +131,13 @@ resource "aws_iam_role_policy_attachment" "eks_cloudwatch" {
 resource "aws_iam_role" "app_backend" {
   name = "${var.project_name}-${var.environment}-backend-pod-role"
 
-  # Trust policy: only the backend ServiceAccount in the app namespace
-  # can assume this role. The OIDC condition makes it pod-specific.
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Federated = var.eks_oidc_provider_arn
-      }
-      Action = "sts:AssumeRoleWithWebIdentity"
-      Condition = {
-        StringEquals = {
-          # Format: "<oidc-url>:sub" = "system:serviceaccount:<namespace>:<sa-name>"
-          "${var.eks_oidc_provider_url}:sub" = "system:serviceaccount:shopwise:backend-sa"
-          "${var.eks_oidc_provider_url}:aud" = "sts.amazonaws.com"
-        }
-      }
+      Effect    = "Allow"
+      Principal = { Federated = local.oidc_principal }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = local.oidc_condition
     }]
   })
 
@@ -146,6 +146,7 @@ resource "aws_iam_role" "app_backend" {
     Purpose = "irsa-backend"
   })
 }
+
 
 # What the backend pod is allowed to do
 resource "aws_iam_policy" "app_backend" {

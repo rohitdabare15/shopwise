@@ -14,9 +14,10 @@ output "eks_node_role_name" {
 }
 
 output "backend_pod_role_arn" {
-  description = "ARN of the backend IRSA role — annotated on the K8s ServiceAccount"
+  description = "ARN of the backend IRSA role"
   value       = aws_iam_role.app_backend.arn
 }
+
 
 output "jenkins_role_arn" {
   description = "ARN of the Jenkins IAM role"
