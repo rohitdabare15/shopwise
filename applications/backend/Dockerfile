@@ -29,6 +29,11 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY --chown=appuser:appuser . .
 
+# Create migrations directory owned by appuser
+# so flask db commands work at runtime
+RUN mkdir -p /app/migrations && \
+    chown -R appuser:appuser /app/migrations
+
 # Switch to non-root user
 USER appuser
 
