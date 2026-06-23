@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: shopwise
+data:
+  # These values are not sensitive — safe in a ConfigMap
+  DB_HOST: "shopwise-dev-postgres.cm7pajh16iac.us-east-1.rds.amazonaws.com"
+  DB_PORT: "5432"
+  DB_NAME: "shopwise"
+  DB_USER: "shopwise_admin"
+  ENVIRONMENT: "dev"
+  ALLOWED_ORIGINS: "*"
+  # Gunicorn tuning
+  WEB_CONCURRENCY: "2"

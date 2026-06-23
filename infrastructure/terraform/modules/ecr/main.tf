@@ -12,7 +12,7 @@ resource "aws_ecr_repository" "main" {
 
   name                 = "${var.project_name}/${each.value}"
   image_tag_mutability = "MUTABLE"
-
+  force_delete         = true
   # Scan images for CVEs on every push
   # Results appear in the ECR console and can trigger alerts
   image_scanning_configuration {

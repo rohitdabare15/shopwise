@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shopwise
+  labels:
+    project: shopwise
+    managed-by: kubectl
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring      # Used in Phase 14
+  labels:
+    project: shopwise
+    managed-by: kubectl
