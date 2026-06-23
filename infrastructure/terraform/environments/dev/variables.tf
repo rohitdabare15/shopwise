@@ -70,3 +70,8 @@ variable "db_password_secret_arn" {
   description = "Secrets Manager ARN for RDS master password"
   type        = string
 }
+
+variable "my_ip" {
+  description = "Your public IP for Jenkins and SSH access"
+  type        = string
+}

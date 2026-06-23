@@ -62,3 +62,11 @@ output "ecr_frontend_url" {
 output "ecr_backend_url" {
   value = module.ecr.backend_url
 }
+
+output "jenkins_url" {
+  value = module.jenkins.jenkins_url
+}
+
+output "jenkins_public_ip" {
+  value = module.jenkins.jenkins_public_ip
+}

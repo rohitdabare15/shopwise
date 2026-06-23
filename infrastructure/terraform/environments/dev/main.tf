@@ -137,6 +137,22 @@ module "ecr" {
     Team = "platform"
   }
 }
+
+module "jenkins" {
+  source = "../../modules/bastion"
+
+  project_name             = var.project_name
+  environment              = var.environment
+  vpc_id                   = module.vpc.vpc_id
+  public_subnet_id         = module.vpc.public_subnet_ids[0]
+  jenkins_instance_profile = module.iam.jenkins_instance_profile_name
+  instance_type            = "t3.medium"
+
+  # Replace with your actual IP from checkip.amazonaws.com
+  allowed_cidr = "${var.my_ip}/32"
+
+  tags = { Team = "platform" }
+}
 # ── Feed OIDC values back into IAM module ──────────────────────
 # Now that EKS exists, update the IAM module with the OIDC
 # provider details so the backend IRSA role gets created.

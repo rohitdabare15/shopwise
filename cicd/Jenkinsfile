@@ -1,0 +1,186 @@
+pipeline {
+    agent any
+
+    // Environment variables available to all stages
+    environment {
+        AWS_REGION      = 'us-east-1'
+        AWS_ACCOUNT_ID  = sh(script: 'aws sts get-caller-identity --query Account --output text', returnStdout: true).trim()
+        ECR_REGISTRY    = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        CLUSTER_NAME    = 'shopwise-dev'
+        NAMESPACE       = 'shopwise'
+        IMAGE_TAG       = "${env.BUILD_NUMBER}-${env.GIT_COMMIT?.take(7) ?: 'local'}"
+    }
+
+    options {
+        // Keep last 10 builds, discard older ones
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        // Fail the build if it runs longer than 30 minutes
+        timeout(time: 30, unit: 'MINUTES')
+        // Don't run the same pipeline concurrently
+        disableConcurrentBuilds()
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'git log --oneline -5'
+                echo "Building commit: ${env.GIT_COMMIT}"
+            }
+        }
+
+        stage('Test Backend') {
+            steps {
+                dir('applications/backend') {
+                    sh '''
+                        # Install test dependencies
+                        pip3 install -r requirements.txt pytest
+
+                        # Run tests (we will add tests in Phase 17)
+                        echo "Backend tests passed (placeholder)"
+                    '''
+                }
+            }
+        }
+
+        stage('Build Images') {
+            parallel {
+                // Build both images simultaneously — saves time
+                stage('Build Backend') {
+                    steps {
+                        sh """
+                            docker build \
+                              -t shopwise-backend:${IMAGE_TAG} \
+                              -t shopwise-backend:latest \
+                              ./applications/backend
+                        """
+                    }
+                }
+                stage('Build Frontend') {
+                    steps {
+                        sh """
+                            docker build \
+                              -t shopwise-frontend:${IMAGE_TAG} \
+                              -t shopwise-frontend:latest \
+                              ./applications/frontend
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                sh """
+                    # Authenticate to ECR
+                    aws ecr get-login-password --region ${AWS_REGION} | \
+                      docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+                    # Push backend
+                    docker tag shopwise-backend:${IMAGE_TAG} ${ECR_REGISTRY}/shopwise/backend:${IMAGE_TAG}
+                    docker tag shopwise-backend:latest       ${ECR_REGISTRY}/shopwise/backend:latest
+                    docker push ${ECR_REGISTRY}/shopwise/backend:${IMAGE_TAG}
+                    docker push ${ECR_REGISTRY}/shopwise/backend:latest
+
+                    # Push frontend
+                    docker tag shopwise-frontend:${IMAGE_TAG} ${ECR_REGISTRY}/shopwise/frontend:${IMAGE_TAG}
+                    docker tag shopwise-frontend:latest        ${ECR_REGISTRY}/shopwise/frontend:latest
+                    docker push ${ECR_REGISTRY}/shopwise/frontend:${IMAGE_TAG}
+                    docker push ${ECR_REGISTRY}/shopwise/frontend:latest
+                """
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                sh """
+                    # Update kubeconfig
+                    aws eks update-kubeconfig \
+                      --region ${AWS_REGION} \
+                      --name ${CLUSTER_NAME}
+
+                    # Update backend deployment image
+                    kubectl set image deployment/backend \
+                      backend=${ECR_REGISTRY}/shopwise/backend:${IMAGE_TAG} \
+                      -n ${NAMESPACE}
+
+                    # Update frontend deployment image
+                    kubectl set image deployment/frontend \
+                      frontend=${ECR_REGISTRY}/shopwise/frontend:${IMAGE_TAG} \
+                      -n ${NAMESPACE}
+
+                    # Wait for rollouts to complete
+                    kubectl rollout status deployment/backend \
+                      -n ${NAMESPACE} --timeout=300s
+
+                    kubectl rollout status deployment/frontend \
+                      -n ${NAMESPACE} --timeout=300s
+                """
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh """
+                    # Get ALB URL
+                    ALB_URL=\$(kubectl get ingress shopwise-ingress \
+                      -n ${NAMESPACE} \
+                      -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+                    echo "Testing: http://\$ALB_URL"
+
+                    # Wait for ALB to be ready
+                    sleep 15
+
+                    # Health check with retry
+                    for i in 1 2 3 4 5; do
+                      STATUS=\$(curl -s -o /dev/null -w "%{http_code}" http://\$ALB_URL/health)
+                      if [ "\$STATUS" = "200" ]; then
+                        echo "Health check passed (attempt \$i)"
+                        break
+                      fi
+                      echo "Attempt \$i failed with status \$STATUS, retrying..."
+                      sleep 10
+                    done
+
+                    if [ "\$STATUS" != "200" ]; then
+                      echo "Health check failed after 5 attempts"
+                      exit 1
+                    fi
+                """
+            }
+        }
+
+        stage('Tag Release') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh """
+                    git tag -a "release-${IMAGE_TAG}" \
+                      -m "Deployed to dev by Jenkins build ${BUILD_NUMBER}"
+                    git push origin "release-${IMAGE_TAG}" || true
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline succeeded. Build ${IMAGE_TAG} deployed to ${CLUSTER_NAME}"
+        }
+        failure {
+            echo "Pipeline failed at stage: ${env.STAGE_NAME}"
+            // In Phase 14 we add Slack/email notifications here
+        }
+        always {
+            // Clean up local Docker images to save disk space
+            sh """
+                docker rmi shopwise-backend:${IMAGE_TAG} || true
+                docker rmi shopwise-frontend:${IMAGE_TAG} || true
+            """
+            cleanWs()
+        }
+    }
+}
