@@ -16,26 +16,16 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-                sh 'git log --oneline -3'
-            }
-        }
-
         stage('Setup') {
             steps {
-                sh '''
-                    AWS_ACCOUNT_ID=$(aws sts get-caller-identity \
-                      --query Account --output text)
-                    echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" > build.env
-                    echo "ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> build.env
-                    cat build.env
-                '''
                 script {
-                    def props = readProperties file: 'build.env'
-                    env.AWS_ACCOUNT_ID = props.AWS_ACCOUNT_ID
-                    env.ECR_REGISTRY   = props.ECR_REGISTRY
+                    env.AWS_ACCOUNT_ID = sh(
+                        script: 'aws sts get-caller-identity --query Account --output text',
+                        returnStdout: true
+                    ).trim()
+                    env.ECR_REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
+                    echo "Account: ${env.AWS_ACCOUNT_ID}"
+                    echo "Registry: ${env.ECR_REGISTRY}"
                 }
             }
         }
@@ -130,12 +120,11 @@ pipeline {
                         http://\$ALB_URL/health || echo "000")
                       echo "Attempt \$i: HTTP \$STATUS"
                       if [ "\$STATUS" = "200" ]; then
-                        echo "Deployment verified successfully"
+                        echo "Deployment verified"
                         exit 0
                       fi
                       sleep 10
                     done
-                    echo "Verification failed"
                     exit 1
                 """
             }
@@ -144,7 +133,7 @@ pipeline {
 
     post {
         success {
-            echo "Build ${env.IMAGE_TAG} deployed successfully to ${CLUSTER_NAME}"
+            echo "Build ${env.IMAGE_TAG} deployed to ${CLUSTER_NAME}"
         }
         failure {
             echo "Pipeline failed. Check console output above."
@@ -158,3 +147,4 @@ pipeline {
         }
     }
 }
+
