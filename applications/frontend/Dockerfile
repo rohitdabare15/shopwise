@@ -5,12 +5,13 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install
+RUN npm install && \
+    chmod -R 755 node_modules/.bin && \
+    ls -la node_modules/.bin/vite
 
 COPY . .
 
-# Use npx to invoke vite directly — bypasses permission issues
-RUN npx vite build
+RUN ./node_modules/.bin/vite build
 
 # ── Stage 2: Serve with Nginx ─────────────────────────────────
 FROM nginx:alpine AS runtime
