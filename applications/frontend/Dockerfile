@@ -5,11 +5,12 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Use npm install instead of npm ci, fix permissions explicitly
-RUN npm install && chmod -R +x node_modules/.bin
+RUN npm install
 
 COPY . .
-RUN npm run build
+
+# Use npx to invoke vite directly — bypasses permission issues
+RUN npx vite build
 
 # ── Stage 2: Serve with Nginx ─────────────────────────────────
 FROM nginx:alpine AS runtime
