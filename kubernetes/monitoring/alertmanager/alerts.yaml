@@ -1,0 +1,46 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: shopwise-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: shopwise.rules
+      rules:
+        - alert: PodCrashLooping
+          expr: rate(kube_pod_container_status_restarts_total{namespace="shopwise"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash looping"
+            description: "Pod has restarted more than once in 15 minutes"
+
+        - alert: HighCPUUsage
+          expr: rate(container_cpu_usage_seconds_total{namespace="shopwise"}[5m]) > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage in shopwise namespace"
+            description: "CPU usage above 80% for 10 minutes"
+
+        - alert: PodNotReady
+          expr: kube_pod_status_ready{namespace="shopwise", condition="true"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} is not ready"
+            description: "Pod has been not ready for 5 minutes"
+
+        - alert: RDSHighConnections
+          expr: aws_rds_database_connections_average > 80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High RDS connection count"
+            description: "RDS connections above 80"

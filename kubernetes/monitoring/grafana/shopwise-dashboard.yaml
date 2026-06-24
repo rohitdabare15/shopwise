@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopwise-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  shopwise.json: |
+    {
+      "title": "Shopwise Application",
+      "panels": [
+        {
+          "title": "HTTP Requests per Second",
+          "type": "graph",
+          "targets": [{
+            "expr": "rate(nginx_http_requests_total[5m])"
+          }]
+        },
+        {
+          "title": "Pod CPU Usage",
+          "type": "graph",
+          "targets": [{
+            "expr": "rate(container_cpu_usage_seconds_total{namespace='shopwise'}[5m])"
+          }]
+        },
+        {
+          "title": "Pod Memory Usage",
+          "type": "graph",
+          "targets": [{
+            "expr": "container_memory_usage_bytes{namespace='shopwise'}"
+          }]
+        },
+        {
+          "title": "Pod Restarts",
+          "type": "stat",
+          "targets": [{
+            "expr": "kube_pod_container_status_restarts_total{namespace='shopwise'}"
+          }]
+        }
+      ]
+    }
