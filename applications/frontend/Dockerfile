@@ -5,13 +5,13 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install && \
-    chmod -R 755 node_modules/.bin && \
-    ls -la node_modules/.bin/vite
+RUN npm install
 
 COPY . .
 
-RUN ./node_modules/.bin/vite build
+# chmod and build in same RUN — prevents cache splitting the steps
+RUN chmod -R 755 /app/node_modules && \
+    node /app/node_modules/vite/bin/vite.js build
 
 # ── Stage 2: Serve with Nginx ─────────────────────────────────
 FROM nginx:alpine AS runtime
