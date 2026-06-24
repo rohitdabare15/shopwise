@@ -5,7 +5,7 @@ on AWS, demonstrating enterprise-grade infrastructure, CI/CD, and observability.
 
 ## Architecture Overview
 
-![Shopwise 3-Tier Architecture](docs/architecture/aws_3tier_architecture_overview.png)
+![Shopwise 3-Tier Architecture](docs/architecture/shopwise_architecture_final.png)
 
 The application follows a 3-tier architecture:
 - **Public tier**: ALB receives internet traffic and routes to EKS pods
