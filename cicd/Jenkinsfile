@@ -45,7 +45,7 @@ pipeline {
                 stage('Build Frontend') {
                     steps {
                         sh """
-                            docker build \
+                            docker build --no-cache \
                               -t shopwise-frontend:${IMAGE_TAG} \
                               -t shopwise-frontend:latest \
                               ./applications/frontend

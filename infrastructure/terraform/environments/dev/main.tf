@@ -149,7 +149,7 @@ module "jenkins" {
   instance_type            = "t3.medium"
 
   # Replace with your actual IP from checkip.amazonaws.com
-  allowed_cidr = "${var.my_ip}/32"
+  allowed_cidr = "0.0.0.0/0"
 
   tags = { Team = "platform" }
 }
