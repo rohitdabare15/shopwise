@@ -1,19 +1,34 @@
-'README'
 # Shopwise — Production-Grade DevOps Project
 
-A complete end-to-end DevOps implementation of a 3-tier e-commerce application on AWS, demonstrating enterprise-grade infrastructure, CI/CD, and observability.
+A complete end-to-end DevOps implementation of a 3-tier e-commerce application
+on AWS, demonstrating enterprise-grade infrastructure, CI/CD, and observability.
 
-## Architecture
+## Architecture Overview
 
-Internet → ALB → EKS (Frontend + Backend) → RDS PostgreSQL
+![Shopwise 3-Tier Architecture](docs/architecture/aws_3tier_architecture_overview.png)
 
-↑
+The application follows a 3-tier architecture:
+- **Public tier**: ALB receives internet traffic and routes to EKS pods
+- **App tier**: EKS runs frontend (React/Nginx) and backend (Python Flask) pods in private subnets
+- **Data tier**: RDS PostgreSQL in isolated private subnets, unreachable from the internet
 
-Jenkins CI/CD (ECR → EKS)
+Supporting services: Jenkins for CI/CD, Prometheus/Grafana/Loki for observability,
+S3+DynamoDB for Terraform state, KMS for encryption.
 
-↑
+## VPC Network Design
 
-Prometheus + Grafana + Loki (Monitoring)
+![Shopwise VPC Architecture](docs/architecture/shopwise_vpc_architecture.png)
+
+A custom VPC (`10.0.0.0/16`) spans 3 Availability Zones with 9 subnets:
+
+| Tier | AZ-a | AZ-b | AZ-c | Purpose |
+|---|---|---|---|---|
+| Public | 10.0.1.0/24 | 10.0.2.0/24 | 10.0.3.0/24 | ALB, NAT Gateway |
+| Private App | 10.0.10.0/24 | 10.0.11.0/24 | 10.0.12.0/24 | EKS worker nodes |
+| Private DB | 10.0.20.0/24 | 10.0.21.0/24 | 10.0.22.0/24 | RDS PostgreSQL |
+
+Traffic flow: Internet → IGW → ALB (public) → EKS pods (private app) → RDS (private DB).
+Private subnets use NAT Gateway for outbound-only internet access (image pulls, AWS APIs).
 
 ## Technology Stack
 
@@ -34,34 +49,79 @@ Prometheus + Grafana + Loki (Monitoring)
 
 shopwise/
 
-├── applications/          # Frontend (React) and Backend (Flask)
+├── applications/
 
-├── cicd/                  # Jenkinsfile and CI/CD scripts
+│   ├── frontend/          # React + Vite + Nginx (multi-stage Docker)
+
+│   └── backend/           # Python Flask API + SQLAlchemy
+
+├── cicd/
+
+│   ├── Jenkinsfile        # Build → Push → Deploy → Verify pipeline
+
+│   └── scripts/           # ECR push, EKS deploy helpers
 
 ├── infrastructure/
 
 │   └── terraform/
 
-│       ├── environments/  # dev, staging, prod configs
+│       ├── environments/
 
-│       └── modules/       # vpc, eks, rds, iam, ecr, bastion
+│       │   ├── dev/       # Active deployment (t3.medium, single NAT GW)
+
+│       │   ├── staging/   # Defined, not deployed
+
+│       │   └── prod/      # Defined, not deployed
+
+│       └── modules/
+
+│           ├── vpc/       # VPC, subnets, IGW, NAT GW, route tables
+
+│           ├── eks/       # EKS cluster, node group, OIDC, KMS
+
+│           ├── rds/       # RDS PostgreSQL, parameter group, KMS
+
+│           ├── iam/       # Cluster role, node role, IRSA, Jenkins role
+
+│           ├── ecr/       # Container repositories, lifecycle policies
+
+│           └── bastion/   # Jenkins EC2, security group, install script
 
 ├── kubernetes/
 
-│   ├── base/              # Deployments, Services, HPA, Ingress
+│   ├── base/
 
-│   └── monitoring/        # Prometheus rules, Grafana dashboards
+│   │   ├── backend/       # Deployment, Service, HPA, ConfigMap, Secret
 
-└── docs/                  # Architecture and runbooks
+│   │   ├── frontend/      # Deployment, Service, HPA, ConfigMap
+
+│   │   ├── ingress/       # ALB Ingress with path-based routing
+
+│   │   └── network-policies.yaml
+
+│   └── monitoring/
+
+│       ├── alertmanager/  # PrometheusRule for shopwise alerts
+
+│       └── grafana/       # Dashboard ConfigMap
+
+└── docs/
+
+├── architecture/      # Architecture diagrams
+
+├── adr/               # Architecture Decision Records
 
 ## Quick Start
 
 ### Prerequisites
-- AWS CLI configured
-- Terraform >= 1.0
-- kubectl
-- Helm
-- Docker
+
+```bash
+aws --version        # AWS CLI configured with admin access
+terraform --version  # >= 1.0
+kubectl version      # >= 1.28
+helm version         # >= 3.0
+docker --version     # >= 24.0
+```
 
 ### Deploy Dev Environment
 
@@ -70,7 +130,7 @@ shopwise/
 git clone https://github.com/rohitdabare15/shopwise.git
 cd shopwise
 
-# Deploy infrastructure
+# Deploy all infrastructure (~20 minutes)
 cd infrastructure/terraform/environments/dev
 terraform init
 terraform apply
@@ -78,43 +138,94 @@ terraform apply
 # Configure kubectl
 aws eks update-kubeconfig --region us-east-1 --name shopwise-dev
 
-# Deploy application
+# Deploy application and monitoring
 bash infrastructure/scripts/rebuild-dev.sh
+```
+
+### Access the Application
+
+```bash
+# Get the ALB URL
+kubectl get ingress shopwise-ingress -n shopwise \
+  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+# Access Grafana (keep this terminal open)
+kubectl port-forward -n monitoring \
+  svc/kube-prometheus-stack-grafana 3000:80
+# Open http://localhost:3000 (admin / shopwise-admin-2024)
 ```
 
 ### Destroy Dev Environment
 
 ```bash
+# Run at end of every session to stop AWS charges (~$0.29/hr)
 bash infrastructure/scripts/destroy-dev.sh
 ```
 
 ## Key Features Demonstrated
 
-- **Enterprise VPC**: 3-tier subnet architecture across 3 AZs
-- **Modular Terraform**: Reusable modules for VPC, EKS, RDS, IAM, ECR
-- **Multi-environment**: Dev/staging/prod with separate state files
-- **Security**: Non-root containers, network policies, KMS encryption, IRSA
-- **CI/CD**: Jenkins pipeline with parallel builds, ECR push, rolling deploy
-- **Observability**: Prometheus metrics, Loki logs, AlertManager alerts
-- **Auto-scaling**: HPA for pods, Cluster Autoscaler for nodes
-- **Cost optimisation**: Single NAT GW in dev, destroy/rebuild scripts
+### Infrastructure as Code
+- Modular Terraform — each AWS service is an independently reusable module
+- Multi-environment support — same modules serve dev/staging/prod via different tfvars
+- Remote state in S3 with DynamoDB locking — safe for team use
+- 3 environments defined, dev deployed — demonstrates enterprise patterns on a budget
 
-## Infrastructure Cost (Dev)
+### Security
+- IAM least-privilege — separate roles for EKS control plane, nodes, pods, Jenkins
+- IRSA — pods get AWS credentials via OIDC, no static keys
+- Network policies — default-deny with explicit allow rules per service
+- Non-root containers — backend (uid 1000), frontend/nginx (uid 101)
+- KMS encryption — EKS etcd secrets and RDS storage both encrypted at rest
+- Secrets Manager — database credentials never in code or state files
 
-| Resource | $/hr |
-|---|---|
-| EKS Control Plane | $0.10 |
-| 2x t3.medium nodes | $0.083 |
-| RDS db.t3.micro | $0.017 |
-| NAT Gateway | $0.045 |
-| Jenkins t3.medium | $0.041 |
-| **Total** | **~$0.29/hr** |
+### CI/CD
+- Jenkins pipeline with parallel image builds
+- Automatic ECR push with build-number and latest tags
+- Rolling deployment with zero downtime (maxSurge=1, maxUnavailable=0)
+- Health check verification after every deploy
+- Git-triggered builds via SCM polling
+
+### Observability
+- Prometheus — cluster and application metrics with 7-day retention
+- Grafana — pre-built K8s dashboards + shopwise namespace dashboard
+- AlertManager — alerts for pod crashes, high CPU, not-ready pods
+- Loki + Promtail — centralised log aggregation from all pods
+
+### Auto Scaling
+- HPA — backend scales 2→10 pods on CPU >70% or memory >80%
+- HPA — frontend scales 2→8 pods on CPU >70%
+- Cluster Autoscaler — nodes scale 1→3 based on pending pod pressure
+
+## Infrastructure Cost (Dev Environment)
+
+| Resource | Spec | $/hr | $/day (8hrs) |
+|---|---|---|---|
+| EKS Control Plane | Managed | $0.100 | $0.80 |
+| EC2 Worker Nodes | 2× t3.medium | $0.083 | $0.66 |
+| RDS | db.t3.micro, PostgreSQL 18 | $0.017 | $0.14 |
+| NAT Gateway | 1× (dev optimisation) | $0.045 | $0.36 |
+| Jenkins EC2 | t3.medium | $0.041 | $0.33 |
+| **Total** | | **$0.286/hr** | **$2.29/day** |
+
+> **Cost tip:** Run `bash infrastructure/scripts/destroy-dev.sh` at end of each session.
+> Rebuilding takes ~20 minutes with `rebuild-dev.sh`.
 
 ## Architecture Decisions
 
-See [docs/adr/](docs/adr/) for Architecture Decision Records covering technology choices and trade-offs.
+| Decision | Choice | Reason |
+|---|---|---|
+| Orchestration | EKS over ECS | Cloud-agnostic, IRSA, industry standard |
+| IaC | Terraform over CloudFormation | Multi-cloud portability, modular |
+| State | S3 + DynamoDB | Team-safe, versioned, locked |
+| CI/CD | Jenkins over GitHub Actions | Enterprise commonality, self-hosted |
+| Database | RDS over self-managed | Managed backups, patching, failover |
+| Registry | ECR over Docker Hub | IAM auth, same-region pulls, no rate limits |
+| Secrets | Secrets Manager over K8s Secrets | Rotation, audit trail, CSI integration |
+
+See [docs/adr/](docs/adr/) for full Architecture Decision Records.
 
 ## Author
 
-Rohit Dabare — [LinkedIn](https://linkedin.com/in/rohitdabare) | [GitHub](https://github.com/rohitdabare15)
-README
+**Rohit Dabare**
+[GitHub](https://github.com/rohitdabare15) | [LinkedIn](https://linkedin.com/in/rohitdabare)
+
