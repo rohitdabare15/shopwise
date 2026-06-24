@@ -7,38 +7,39 @@ metadata:
     app: backend
     version: v1.0.0
 spec:
-  replicas: 2                   # Start with 2 — HPA will adjust
+  replicas: 2
   selector:
     matchLabels:
-      app: backend              # Must match template labels below
-
+      app: backend
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1               # Create 1 extra pod before killing old ones
-      maxUnavailable: 0         # Never have fewer than desired replicas during update
-                                # = zero-downtime deployments
-
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
         app: backend
         version: v1.0.0
       annotations:
-        # Prometheus will scrape metrics from this pod on port 5000
         prometheus.io/scrape: "true"
         prometheus.io/port: "5000"
         prometheus.io/path: "/metrics"
     spec:
-      # ServiceAccount links this pod to the IRSA role (Phase 5)
-      # The pod gets AWS credentials automatically via OIDC
       serviceAccountName: backend-sa
 
-      # Init container runs before the main container starts
-      # Ensures DB tables exist before Flask tries to query them
+      # Pod-level security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000        # appuser from our Dockerfile
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault  # Restricts syscalls to safe subset
+
       initContainers:
         - name: db-migrate
-          image: BACKEND_IMAGE_URL:latest   # Replaced by deploy script
+          image: BACKEND_IMAGE_URL:latest
           command: ["python", "-c"]
           args:
             - |
@@ -52,41 +53,49 @@ spec:
                 name: backend-config
             - secretRef:
                 name: backend-secret
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
 
       containers:
         - name: backend
-          image: BACKEND_IMAGE_URL:latest   # Replaced by deploy script
+          image: BACKEND_IMAGE_URL:latest
           ports:
             - containerPort: 5000
               name: http
-
-          # Pull env vars from ConfigMap and Secret
           envFrom:
             - configMapRef:
                 name: backend-config
             - secretRef:
                 name: backend-secret
 
-          # Resource limits — prevent one pod consuming all node resources
+          # Container-level security context
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false  # Cannot gain more privileges than parent
+            readOnlyRootFilesystem: false     # Flask needs to write temp files
+            capabilities:
+              drop: ["ALL"]                  # Drop all Linux capabilities
+
           resources:
             requests:
-              memory: "128Mi"   # Kubernetes reserves this much on the node
-              cpu: "100m"       # 100 millicores = 0.1 CPU core
+              memory: "128Mi"
+              cpu: "100m"
             limits:
-              memory: "256Mi"   # Pod is killed if it exceeds this
-              cpu: "500m"       # Pod is throttled if it exceeds this
-
-          # Liveness probe — if this fails, Kubernetes restarts the pod
+              memory: "256Mi"
+              cpu: "500m"
           livenessProbe:
             httpGet:
               path: /health
               port: 5000
-            initialDelaySeconds: 30   # Wait 30s before first check (app startup time)
+            initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
-
-          # Readiness probe — if this fails, pod is removed from load balancer
-          # but NOT restarted. Used during rolling updates.
           readinessProbe:
             httpGet:
               path: /ready
@@ -94,8 +103,6 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 3
-
-      # Spread pods across different nodes for resilience
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

@@ -22,12 +22,28 @@ spec:
         app: frontend
         version: v1.0.0
     spec:
+      # Nginx runs as root by default — use nginx unprivileged image
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101         # nginx user in nginx:alpine-unprivileged
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+
       containers:
         - name: frontend
-          image: FRONTEND_IMAGE_URL:latest    # Replaced by deploy script
+          image: FRONTEND_IMAGE_URL:latest
           ports:
-            - containerPort: 80
+            - containerPort: 8080   # unprivileged nginx uses 8080 not 80
               name: http
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           resources:
             requests:
               memory: "64Mi"
@@ -38,14 +54,14 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 80
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health
-              port: 80
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3
